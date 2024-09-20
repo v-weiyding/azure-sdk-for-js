@@ -1,0 +1,103 @@
+name: "Test Appconfig Samples"
+
+on:
+  workflow_dispatch:
+    inputs:
+      Location:
+        description: 'Test Resource Group Location'
+        required: true
+        default: 'eastus'
+
+permissions:
+  id-token: write
+
+jobs:
+  testSamples:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Prepare resource name
+        shell: bash
+        run: |
+          RESOURCE_GROUP="rg-sdk-samples-test-$(uuidgen | cut -c 1-8)"
+          echo "RESOURCE_GROUP=$RESOURCE_GROUP" >> $GITHUB_ENV
+
+          RESOURCE_NAME="appconfig-$(uuidgen | cut -c 1-8)"
+          echo "RESOURCE_NAME=$RESOURCE_NAME" >> $GITHUB_ENV
+
+      - name: Create resource
+        run: |
+
+          az group create -g ${{ env.RESOURCE_GROUP }}  -l ${{ github.event.inputs.Location }}
+
+          az appconfig create -g ${{ env.RESOURCE_GROUP}} -n ${{ env.RESOURCE_NAME }} -l ${{ github.event.inputs.Location }}
+          APPCONFIG_CONNECTION_STRING=$(az appconfig credential list -n ${{ env.RESOURCE_NAME }} -g ${{ env.RESOURCE_GROUP}} --query "[?name=='Primary'].connectionString" -o tsv)
+          echo "APPCONFIG_CONNECTION_STRING=$APPCONFIG_CONNECTION_STRING" >> $GITHUB_ENV
+          
+          az keyvault create -g ${{ env.RESOURCE_GROUP}} -n ${{ env.RESOURCE_NAME }} -l ${{ github.event.inputs.Location }}
+          KEYVAULT_URI=$(az keyvault show -n ${{ env.RESOURCE_NAME }} --query "properties.vaultUri" -o tsv)
+          echo "KEYVAULT_URI=$KEYVAULT_URI" >> $GITHUB_ENV
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.x'
+          
+      - name: Install alpha package
+        working-directory: 'sdk/appconfiguration/app-configuration/samples/v1-beta/typescript'
+        run: |
+           npm install -g typescript
+           npm install -g ts-node
+           npm install 
+           npm install @azure/app-configuration@dev
+
+      - name: Run samples
+        timeout-minutes: 30
+        working-directory: 'sdk/appconfiguration/app-configuration/samples/v1-beta/typescript/src'
+        run: |
+             ignore_list=(
+              "secretReference"
+             )
+
+             echo "APPCONFIG_CONNECTION_STRING=$APPCONFIG_CONNECTION_STRING" > ".env";
+             echo "KEYVAULT_URI=$KEYVAULT_URI" >> ".env";
+
+             for file in $(find . -maxdepth 1 -name "*.ts"); do
+               echo -e "\n\n"
+               skip=false
+               for ignore in "${ignore_list[@]}"; do
+                 if [[ "$file" == *"$ignore"* ]]; then
+                     skip=true
+                     break
+                 fi
+               done
+               if [ "$skip" = true ]; then
+                   echo "Skipping $file Sample =============================="
+                   continue
+               fi
+               echo "Running $file Sample: =================================="
+               ts-node "$file"
+               sleep 5
+             done
+
+      - name: Clean up resource
+        if: always()
+        shell: bash
+        run: |
+            echo "Deleting appconfig ${{ env.RESOURCE_NAME }}..."
+            az appconfig delete -g ${{ env.RESOURCE_GROUP}} -n ${{ env.RESOURCE_NAME }} -y
+            az appconfig purge -n ${{ env.RESOURCE_NAME }} -y
+
+            echo "Deleting keyvault ${{ env.RESOURCE_NAME }}..."
+            az keyvault delete -g ${{ env.RESOURCE_GROUP}} -n ${{ env.RESOURCE_NAME }}
+            az keyvault purge -n ${{ env.RESOURCE_NAME }}
+
+            echo "Delete ${{ env.RESOURCE_GROUP }} group..."
+            az group delete -g ${{ env.RESOURCE_GROUP }} -y
