@@ -16,6 +16,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      - name: Harden Runner
+        uses: step-security/harden-runner@63c24ba6bd7ba022e95695ff85de572c04a18142 # v2.7.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+          ref: main
+
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -53,39 +64,39 @@ jobs:
       - name: Install alpha package
         working-directory: 'sdk/appconfiguration/app-configuration/samples/v1-beta/typescript'
         run: |
-           npm install -g typescript
-           npm install -g ts-node
-           npm install 
-           npm install @azure/app-configuration@dev
+            npm install -g typescript
+            npm install -g ts-node
+            npm install 
+            npm install @azure/app-configuration@dev
 
       - name: Run samples
         timeout-minutes: 30
         working-directory: 'sdk/appconfiguration/app-configuration/samples/v1-beta/typescript/src'
         run: |
-             ignore_list=(
+              ignore_list=(
               "secretReference"
-             )
+              )
 
-             echo "APPCONFIG_CONNECTION_STRING=$APPCONFIG_CONNECTION_STRING" > ".env";
-             echo "KEYVAULT_URI=$KEYVAULT_URI" >> ".env";
+              echo "APPCONFIG_CONNECTION_STRING=$APPCONFIG_CONNECTION_STRING" > ".env";
+              echo "KEYVAULT_URI=$KEYVAULT_URI" >> ".env";
 
-             for file in $(find . -maxdepth 1 -name "*.ts"); do
-               echo -e "\n\n"
-               skip=false
-               for ignore in "${ignore_list[@]}"; do
-                 if [[ "$file" == *"$ignore"* ]]; then
-                     skip=true
-                     break
-                 fi
-               done
-               if [ "$skip" = true ]; then
-                   echo "Skipping $file Sample =============================="
-                   continue
-               fi
-               echo "Running $file Sample: =================================="
-               ts-node "$file"
-               sleep 5
-             done
+              for file in $(find . -maxdepth 1 -name "*.ts"); do
+                echo -e "\n\n"
+                skip=false
+                for ignore in "${ignore_list[@]}"; do
+                  if [[ "$file" == *"$ignore"* ]]; then
+                      skip=true
+                      break
+                  fi
+                done
+                if [ "$skip" = true ]; then
+                    echo "Skipping $file Sample =============================="
+                    continue
+                fi
+                echo "Running $file Sample: =================================="
+                ts-node "$file"
+                sleep 5
+              done
 
       - name: Clean up resource
         if: always()
