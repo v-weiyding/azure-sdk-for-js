@@ -66,8 +66,8 @@ jobs:
         run: |
             npm install -g typescript
             npm install -g ts-node
-            npm install 
             npm install @azure/app-configuration@dev
+            npm install 
 
       - name: Run samples
         timeout-minutes: 30
