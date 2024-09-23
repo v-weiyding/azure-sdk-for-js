@@ -72,7 +72,7 @@ jobs:
 
             input_string=$(npm info "$package_name" time)
 
-            IFS=$'\n' read -rd '' -a lines <<< "$input_string"
+            mapfile -t lines <<< "$input_string"
 
             for ((i=${#lines[@]}-1; i>=0; i--)); do
                 line="${lines[i]}"
