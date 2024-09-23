@@ -67,11 +67,12 @@ jobs:
             npm install -g typescript
             npm install -g ts-node
 
-            package_name=@azure/app-configuration
-
+            package_name="@azure/app-configuration"
+            echo "---------1" 
             input_string=$(npm info "$package_name" time)
+            echo "---------2" 
             IFS=$'\n' read -rd '' -a lines <<< "$input_string"
-
+            echo "---------3" 
             for ((i=${#lines[@]}-1; i>=0; i--)); do
                 line="${lines[i]}"
 
@@ -90,7 +91,7 @@ jobs:
                     break
                 fi
             done
-
+            echo "---------4" 
             npm install 
 
       - name: Run samples
