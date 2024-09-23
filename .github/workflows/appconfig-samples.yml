@@ -61,12 +61,36 @@ jobs:
         with:
           node-version: '20.x'
           
-      - name: Install alpha package
+      - name: Install package
         working-directory: 'sdk/appconfiguration/app-configuration/samples/v1-beta/typescript'
         run: |
             npm install -g typescript
             npm install -g ts-node
-            npm install @azure/app-configuration@dev
+
+            package_name=@azure/app-configuration
+
+            input_string=$(npm info "$package_name" time)
+            IFS=$'\n' read -rd '' -a lines <<< "$input_string"
+
+            for ((i=${#lines[@]}-1; i>=0; i--)); do
+                line="${lines[i]}"
+
+                if [[ $line == *"alpha"* ]]; then
+                    continue
+                fi
+
+                if [[ $line == *":"* ]]; then
+                    echo "Found package version: $line"
+
+                    if [[ $line == *"beta"* ]]; then
+                        npm install "$package_name@next"
+                    else
+                        npm install "$package_name@latest"
+                    fi
+                    break
+                fi
+            done
+
             npm install 
 
       - name: Run samples
