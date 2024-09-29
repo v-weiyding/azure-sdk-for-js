@@ -116,10 +116,10 @@ jobs:
                   fi
                 done
                 if [ "$skip" = true ]; then
-                    echo "Skipping $file Sample =============================="
+                    echo "\n Skipping $file Sample =============================="
                     continue
                 fi
-                echo "Running $file Sample: =================================="
+                echo "\n Running $file Sample: =================================="
                 ts-node "$file"
                 sleep 5
               done
