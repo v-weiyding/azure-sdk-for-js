@@ -17,11 +17,11 @@ const { createReadStream } = require("fs");
 require("dotenv/config");
 
 // You will need to set these environment variables or edit the following values
-const audioFilePath = process.env["AUDIO_FILE_PATH"] || "<audio file path>";
+const audioFilePath = process.env["AUDIO_FILE_PATH"] || "./countdown.mp3";
 
 async function main() {
   console.log("== Transcribe Audio Sample ==");
-
+  
   const scope = "https://cognitiveservices.azure.com/.default";
   const azureADTokenProvider = getBearerTokenProvider(new DefaultAzureCredential(), scope);
   const deployment = "whisper-deployment";
