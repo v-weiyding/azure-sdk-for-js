@@ -2,23 +2,20 @@
 // Licensed under the MIT License.
 /// <reference lib="esnext.asynciterable" />
 
-import { TokenCredential } from "@azure/core-auth";
-
-import { bearerTokenAuthenticationPolicy } from "@azure/core-rest-pipeline";
+import type { TokenCredential } from "@azure/core-auth";
 
 import { logger } from "./log.js";
 
 import { PageSettings, PagedAsyncIterableIterator } from "@azure/core-paging";
 import { PollOperationState, PollerLike } from "@azure/core-lro";
-import {
+import type {
   DeletedSecretBundle,
-  DeletionRecoveryLevel,
   GetSecretsOptionalParams,
-  KnownDeletionRecoveryLevel,
   SecretBundle,
 } from "./generated/models/index.js";
+import { DeletionRecoveryLevel, KnownDeletionRecoveryLevel } from "./generated/models/index.js";
 import { KeyVaultClient } from "./generated/keyVaultClient.js";
-import { createKeyVaultChallengeCallbacks } from "@azure/keyvault-common";
+import { keyVaultAuthenticationPolicy } from "@azure/keyvault-common";
 
 import { DeleteSecretPoller } from "./lro/delete/poller.js";
 import { RecoverDeletedSecretPoller } from "./lro/recover/poller.js";
@@ -119,12 +116,6 @@ export class SecretClient {
   ) {
     this.vaultUrl = vaultUrl;
 
-    const authPolicy = bearerTokenAuthenticationPolicy({
-      credential,
-      scopes: [],
-      challengeCallbacks: createKeyVaultChallengeCallbacks(pipelineOptions),
-    });
-
     const internalPipelineOptions = {
       ...pipelineOptions,
       loggingOptions: {
@@ -141,7 +132,12 @@ export class SecretClient {
       pipelineOptions.serviceVersion || LATEST_API_VERSION,
       internalPipelineOptions,
     );
-    this.client.pipeline.addPolicy(authPolicy);
+
+    // The authentication policy must come after the deserialization policy since the deserialization policy
+    // converts 401 responses to an Error, and we don't want to deal with that.
+    this.client.pipeline.addPolicy(keyVaultAuthenticationPolicy(credential, pipelineOptions), {
+      afterPolicies: ["deserializationPolicy"],
+    });
   }
 
   /**
