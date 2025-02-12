@@ -258,6 +258,7 @@ export interface Pipeline {
 
 // @public
 export interface PipelineOptions {
+    agent?: Agent;
     proxyOptions?: ProxySettings;
     redirectOptions?: RedirectPolicyOptions;
     retryOptions?: PipelineRetryOptions;
@@ -402,6 +403,8 @@ export interface ResourceMethods<TResponse = PromiseLike<PathUncheckedResponse>>
 // @public
 export class RestError extends Error {
     constructor(message: string, options?: RestErrorOptions);
+    // (undocumented)
+    [x: symbol]: () => string;
     code?: string;
     details?: unknown;
     static readonly PARSE_ERROR: string;

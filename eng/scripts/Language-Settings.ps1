@@ -53,8 +53,16 @@ function Get-javascript-AdditionalValidationPackagesFromPackageSet {
     return $false
   }
 
+  $targetedFiles = $diffObj.ChangedFiles
+  if ($diff.DeletedFiles) {
+    if (-not $targetedFiles) {
+      $targetedFiles = @()
+    }
+    $targetedFiles += $diff.DeletedFiles
+  }
+
   $changedServices = @()
-  foreach ($file in $diffObj.ChangedFiles) {
+  foreach ($file in $targetedFiles) {
     $pathComponents = $file -split "/"
     # handle changes only in sdk/<service>/<file>/<extension>
     if ($pathComponents.Length -eq 3 -and $pathComponents[0] -eq "sdk") {
@@ -67,8 +75,9 @@ function Get-javascript-AdditionalValidationPackagesFromPackageSet {
     }
   }
   $othersChanged = @()
-  if ($diffObj.ChangedFiles) {
-    $othersChanged = $diffObj.ChangedFiles | Where-Object { isOther $_ }
+
+  if ($targetedFiles) {
+    $othersChanged = $targetedFiles | Where-Object { isOther $_ }
   }
   $changedServices = $changedServices | Get-Unique
 
@@ -104,36 +113,56 @@ function Get-javascript-AdditionalValidationPackagesFromPackageSet {
   return $uniqueResultSet
 }
 
-
 function Get-javascript-PackageInfoFromRepo ($pkgPath, $serviceDirectory) {
-  $projectPath = Join-Path $pkgPath "package.json"
-  if (Test-Path $projectPath) {
-    $projectJson = Get-Content $projectPath | ConvertFrom-Json
-    $jsStylePkgName = $projectJson.name.Replace("@", "").Replace("/", "-")
+  $projectPath = (Join-Path $pkgPath "package.json")
+  $packageProps = @()
 
-    $pkgProp = [PackageProps]::new($projectJson.name, $projectJson.version, $pkgPath, $serviceDirectory)
-    if ($projectJson.psobject.properties.name -contains 'sdk-type') {
-      $pkgProp.SdkType = $projectJson.psobject.properties['sdk-type'].value
-    }
-    else {
-      $pkgProp.SdkType = "unknown"
-    }
-    $pkgProp.IsNewSdk = ($pkgProp.SdkType -eq "client") -or ($pkgProp.SdkType -eq "mgmt")
-    $pkgProp.ArtifactName = $jsStylePkgName
-
-
-    if ($ReducedDependencyLookup.ContainsKey($pkgProp.ServiceDirectory)) {
-      $pkgProp.AdditionalValidationPackages = $ReducedDependencyLookup[$pkgProp.ServiceDirectory]
+  if (-not (Test-Path $projectPath) -and $pkgPath.Contains("perf-test")) {
+    $subdirectories = Get-ChildItem -Path $pkgPath -Directory | Where-Object {
+      return Test-Path -Path (Join-Path $_.FullName "package.json")
     }
 
-    # the constructor for the package properties object attempts to initialize CI artifacts on instantiation
-    # of the class. however, due to the fact that we set the ArtifactName _after_ the constructor is called,
-    # we need to call it again here to ensure the CI artifacts are properly initialized
-    $pkgProp.InitializeCIArtifacts()
-
-    return $pkgProp
+    # Filter subdirectories to those containing a `package.json`
+    $projectPaths = $subdirectories | ForEach-Object {
+      return Join-Path $_.FullName "package.json"
+    }
   }
-  return $null
+  else {
+    $projectPaths = @($projectPath)
+  }
+
+  foreach ($projectPath in $projectPaths) {
+    if (Test-Path $projectPath) {
+      $projectJson = Get-Content $projectPath | ConvertFrom-Json
+      $projectDirectory = Split-Path $projectPath
+
+      $jsStylePkgName = $projectJson.name.Replace("@", "").Replace("/", "-")
+
+      $pkgProp = [PackageProps]::new($projectJson.name, $projectJson.version, $projectDirectory, $serviceDirectory)
+      if ($projectJson.psobject.properties.name -contains 'sdk-type') {
+        $pkgProp.SdkType = $projectJson.psobject.properties['sdk-type'].value
+      }
+      else {
+        $pkgProp.SdkType = "unknown"
+      }
+      $pkgProp.IsNewSdk = ($pkgProp.SdkType -eq "client") -or ($pkgProp.SdkType -eq "mgmt")
+      $pkgProp.ArtifactName = $jsStylePkgName
+
+
+      if ($ReducedDependencyLookup.ContainsKey($pkgProp.ServiceDirectory)) {
+        $pkgProp.AdditionalValidationPackages = $ReducedDependencyLookup[$pkgProp.ServiceDirectory]
+      }
+
+      # the constructor for the package properties object attempts to initialize CI artifacts on instantiation
+      # of the class. however, due to the fact that we set the ArtifactName _after_ the constructor is called,
+      # we need to call it again here to ensure the CI artifacts are properly initialized
+      $pkgProp.InitializeCIArtifacts()
+
+      $packageProps += $pkgProp
+    }
+  }
+
+  return $packageProps
 }
 
 # Returns the npm publish status of a package id and version.

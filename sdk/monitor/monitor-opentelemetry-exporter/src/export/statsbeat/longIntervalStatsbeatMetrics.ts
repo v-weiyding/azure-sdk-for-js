@@ -116,7 +116,7 @@ class LongIntervalStatsbeatMetrics extends StatsbeatMetrics {
     };
   }
 
-  private async initialize() {
+  private async initialize(): Promise<void> {
     try {
       await this.getResourceProvider();
 
@@ -127,21 +127,23 @@ class LongIntervalStatsbeatMetrics extends StatsbeatMetrics {
         [this.featureStatsbeatGauge],
       );
 
-      // Export Feature/Attach Statsbeat once upon app initialization
-      this.longIntervalAzureExporter.export(
-        (await this.longIntervalMetricReader.collect()).resourceMetrics,
-        (result: ExportResult) => {
-          if (result.code !== ExportResultCode.SUCCESS) {
-            diag.error(`LongIntervalStatsbeat: metrics export failed (error ${result.error})`);
-          }
-        },
-      );
+      // Export Feature/Attach Statsbeat once upon app initialization after 15 second delay
+      setTimeout(async () => {
+        this.longIntervalAzureExporter.export(
+          (await this.longIntervalMetricReader.collect()).resourceMetrics,
+          (result: ExportResult) => {
+            if (result.code !== ExportResultCode.SUCCESS) {
+              diag.error(`LongIntervalStatsbeat: metrics export failed (error ${result.error})`);
+            }
+          },
+        );
+      }, 15000); // 15 seconds
     } catch (error) {
       diag.debug("Call to get the resource provider failed.");
     }
   }
 
-  private getEnvironmentStatus(observableResult: BatchObservableResult) {
+  private getEnvironmentStatus(observableResult: BatchObservableResult): void {
     this.setFeatures();
     let attributes;
     if (this.instrumentation) {
@@ -163,7 +165,7 @@ class LongIntervalStatsbeatMetrics extends StatsbeatMetrics {
     }
   }
 
-  private setFeatures() {
+  private setFeatures(): void {
     const statsbeatFeatures = process.env.AZURE_MONITOR_STATSBEAT_FEATURES;
     if (statsbeatFeatures) {
       try {
@@ -177,7 +179,7 @@ class LongIntervalStatsbeatMetrics extends StatsbeatMetrics {
     }
   }
 
-  private attachCallback(observableResult: ObservableResult) {
+  private attachCallback(observableResult: ObservableResult): void {
     const attributes = { ...this.commonProperties, ...this.attachProperties };
     observableResult.observe(1, attributes);
   }

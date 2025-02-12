@@ -1,13 +1,12 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { Suite } from "mocha";
+import type { Suite } from "mocha";
 import assert from "assert";
-import { ContainerDefinition, Container } from "../../../src";
-import items from "./text-3properties-1536dimensions-100documents";
-import { getTestContainer, removeAllDatabases } from "../common/TestHelpers";
+import type { ContainerDefinition, Container } from "../../../src";
+import { getTestContainer, removeAllDatabases, readAndParseJSONFile } from "../common/TestHelpers";
 
-describe.skip("Validate full text search queries", function (this: Suite) {
+describe("Validate full text search queries", function (this: Suite) {
   this.timeout(process.env.MOCHA_TIMEOUT || 20000);
 
   const partitionKey = "id";
@@ -217,7 +216,7 @@ describe.skip("Validate full text search queries", function (this: Suite) {
     [
       `SELECT TOP 10 c.index AS Index, c.title AS Title, c.text AS Text
         FROM c
-        ORDER BY RANK RRF(VectorDistance(c.vector,[${sampleVector}]),FullTextScore(c.title, ['John']), FullTextScore(c.text, ['United States']))`,
+        ORDER BY RANK RRF(VectorDistance(c.vector,[${sampleVector}]), FullTextScore(c.title, ['John']), FullTextScore(c.text, ['United States']))`,
       {
         expected1: [21, 75, 37, 24, 26, 35, 49, 87, 55, 9],
         expected2: [21, 75, 37, 24, 26, 35, 49, 87, 55, 9],
@@ -252,8 +251,17 @@ describe.skip("Validate full text search queries", function (this: Suite) {
       containerDefinition,
       containerOptions,
     );
-    for (const item of items) {
-      await container.items.create(item);
+
+    // Read and Parse JSON file
+    const fileName = "text-3properties-1536dimensions-100documents.json";
+    const items = readAndParseJSONFile(fileName);
+
+    try {
+      for (const item of items) {
+        await container.items.create(item);
+      }
+    } catch (error) {
+      console.error("Error inserting items:", error);
     }
   });
 
@@ -282,6 +290,22 @@ describe.skip("Validate full text search queries", function (this: Suite) {
   it("FetchAll: should return correct expected values for all the queries", async function () {
     for (const [query, { expected1, expected2 }] of queriesMap) {
       const queryOptions = { allowUnboundedNonStreamingQueries: true };
+      const queryIterator = container.items.query(query, queryOptions);
+
+      const { resources: results } = await queryIterator.fetchAll();
+
+      const indexes = results.map((result) => result.Index);
+      const isMatch =
+        JSON.stringify(indexes) === JSON.stringify(expected1) ||
+        JSON.stringify(indexes) === JSON.stringify(expected2);
+
+      assert.ok(isMatch, `The indexes array did not match expected values for query:\n${query}`);
+    }
+  });
+
+  it("FetchAll: should return correct expected values for all the queries", async function () {
+    for (const [query, { expected1, expected2 }] of queriesMap) {
+      const queryOptions = { allowUnboundedNonStreamingQueries: true, enableQueryControl: true };
       const queryIterator = container.items.query(query, queryOptions);
 
       const { resources: results } = await queryIterator.fetchAll();
